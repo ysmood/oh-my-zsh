@@ -9,11 +9,11 @@
 export MARKPATH=$HOME/.marks
 
 jump() {
-	cd -P "$MARKPATH/$1" 2>/dev/null || echo "No such mark: $1"
+	cd -P "$MARKPATH/$1" 2>/dev/null || {echo "No such mark: $1"; return 1}
 }
 
 mark() {
-	if (( $# == 0 )); then
+	if [[ ( $# == 0 ) || ( "$1" == "." ) ]]; then
 		MARK=$(basename "$PWD")
 	else
 		MARK="$1"

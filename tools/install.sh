@@ -1,13 +1,35 @@
-set -e
+main() {
+  # Use colors, but only if connected to a terminal, and that terminal
+  # supports them.
+  if which tput >/dev/null 2>&1; then
+      ncolors=$(tput colors)
+  fi
+  if [ -t 1 ] && [ -n "$ncolors" ] && [ "$ncolors" -ge 8 ]; then
+    RED="$(tput setaf 1)"
+    GREEN="$(tput setaf 2)"
+    YELLOW="$(tput setaf 3)"
+    BLUE="$(tput setaf 4)"
+    BOLD="$(tput bold)"
+    NORMAL="$(tput sgr0)"
+  else
+    RED=""
+    GREEN=""
+    YELLOW=""
+    BLUE=""
+    BOLD=""
+    NORMAL=""
+  fi
 
-if [ ! -n "$ZSH" ]; then
-  ZSH=~/.oh-my-zsh
-fi
+  # Only enable exit-on-error after the non-critical colorization stuff,
+  # which may fail on systems lacking tput or terminfo
+  set -e
 
-if [ -d "$ZSH" ]; then
-  echo "\033[0;33mYou already have Oh My Zsh installed.\033[0m You'll need to remove $ZSH if you want to install"
-  exit
-fi
+  CHECK_ZSH_INSTALLED=$(grep /zsh$ /etc/shells | wc -l)
+  if [ ! $CHECK_ZSH_INSTALLED -ge 1 ]; then
+    printf "${YELLOW}Zsh is not installed!${NORMAL} Please install zsh first!\n"
+    exit
+  fi
+  unset CHECK_ZSH_INSTALLED
 
 echo "\033[0;34mCloning Oh My Zsh...\033[0m"
 hash git >/dev/null 2>&1 && env git clone https://github.com/ysmood/oh-my-zsh.git $ZSH || {
@@ -15,36 +37,4 @@ hash git >/dev/null 2>&1 && env git clone https://github.com/ysmood/oh-my-zsh.gi
   exit
 }
 
-echo "\033[0;34mLooking for an existing zsh config...\033[0m"
-if [ -f ~/.zshrc ] || [ -h ~/.zshrc ]; then
-  echo "\033[0;33mFound ~/.zshrc.\033[0m \033[0;32mBacking up to ~/.zshrc.pre-oh-my-zsh\033[0m";
-  mv ~/.zshrc ~/.zshrc.pre-oh-my-zsh;
-fi
-
-echo "\033[0;34mUsing the Oh My Zsh template file and adding it to ~/.zshrc\033[0m"
-cp $ZSH/templates/zshrc.zsh-template ~/.zshrc
-sed -i -e "/^export ZSH=/ c\\
-export ZSH=$ZSH
-" ~/.zshrc
-
-echo "\033[0;34mCopying your current PATH and adding it to the end of ~/.zshrc for you.\033[0m"
-sed -i -e "/export PATH=/ c\\
-export PATH=\"$PATH\"
-" ~/.zshrc
-
-if [ "$SHELL" != "$(which zsh)" ]; then
-    echo "\033[0;34mTime to change your default shell to zsh!\033[0m"
-    chsh -s `which zsh`
-fi
-
-echo "\033[0;32m"'         __                                     __   '"\033[0m"
-echo "\033[0;32m"'  ____  / /_     ____ ___  __  __   ____  _____/ /_  '"\033[0m"
-echo "\033[0;32m"' / __ \/ __ \   / __ `__ \/ / / /  /_  / / ___/ __ \ '"\033[0m"
-echo "\033[0;32m"'/ /_/ / / / /  / / / / / / /_/ /    / /_(__  ) / / / '"\033[0m"
-echo "\033[0;32m"'\____/_/ /_/  /_/ /_/ /_/\__, /    /___/____/_/ /_/  '"\033[0m"
-echo "\033[0;32m"'                        /____/                       ....is now installed!'"\033[0m"
-echo "\n\n \033[0;32mPlease look over the ~/.zshrc file to select plugins, themes, and options.\033[0m"
-echo "\n\n \033[0;32mp.s. Follow us at http://twitter.com/ohmyzsh.\033[0m"
-echo "\n\n \033[0;32mp.p.s. Get stickers and t-shirts at http://shop.planetargon.com.\033[0m"
-env zsh
-. ~/.zshrc
+main
