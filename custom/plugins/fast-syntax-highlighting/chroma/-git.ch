@@ -74,7 +74,22 @@ else
             # as they aren't paths and aren't handled in any special way there
         elif (( FAST_HIGHLIGHT[chroma-git-got-subcommand] == 0 )); then
             FAST_HIGHLIGHT[chroma-git-got-subcommand]=1
-            FAST_HIGHLIGHT[chroma-git-subcommand]="$__wrd"
+
+            # Check if the command is an alias - we want to highlight the
+            # aliased command just like the target command of the alias
+            -fast-run-command "git config --get-regexp 'alias.*'" chroma-git-alias-list "" 10
+            # Grep for line: alias.{user-entered-subcmd}[[:space:]], and remove alias. prefix
+            __lines_list=( ${${(M)__lines_list[@]:#alias.${__wrd}[[:space:]]##*}#alias.} )
+
+            if (( ${#__lines_list} > 0 )); then
+                # First remove alias name (#*[[:space:]]) and the space after it, then
+                # remove any leading spaces from what's left (##[[:space:]]##), then
+                # remove everything except the first word that's in the left line
+                # (%%[[:space:]]##*, i.e.: "everything from right side up to any space")
+                FAST_HIGHLIGHT[chroma-git-subcommand]="${${${__lines_list[1]#*[[:space:]]}##[[:space:]]##}%%[[:space:]]##*}"
+            else
+                FAST_HIGHLIGHT[chroma-git-subcommand]="$__wrd"
+            fi
             if (( __start_pos >= 0 )); then
                 # if subcommand exists
                 -fast-run-command "git help -a" chroma-git-subcmd-list "" 10
@@ -86,12 +101,13 @@ else
                 # that breaks the concaetnated string back into array in case
                 # of double-quoting has additional effect for s-flag: it
                 # finally blocks empty-elements eradication.
-                __lines_list=( ${(M)${(s: :)${(M)__lines_list:#  [a-z]*}}:#$__wrd} )
+                __lines_list=( ${(M)${(s: :)${(M)__lines_list[@]:#  [a-z]*}}:#$__wrd} )
                 if (( ${#__lines_list} > 0 )); then
                     __style=${FAST_THEME_NAME}subcommand
                 else
-                    -fast-run-command "git alias" chroma-git-alias-list "" 10
-                    __lines_list=( ${(M)__lines_list:#${__wrd}[[:space:]]#=*} )
+                    -fast-run-command "git config --get-regexp 'alias.*'" chroma-git-alias-list "" 10
+                    # Does a line match alias.{user-entered-subcmd}[[:space:]] ?
+                    __lines_list=( ${(M)__lines_list[@]:#alias.${__wrd}[[:space:]]##*} )
                     if (( ${#__lines_list} > 0 )); then
                         __style=${FAST_THEME_NAME}subcommand
                     else
@@ -216,13 +232,18 @@ else
                         if (( __idx1 == 2 )) || \
                             [[ "$__idx1" = 3 && "${FAST_HIGHLIGHT[chroma-git-subcommand]}" = "diff" ]]; then
                             # if is ref
-                            if git rev-parse --verify --quiet "$__wrd" >/dev/null 2>&1; then
+                            if command git rev-parse --verify --quiet "$__wrd" >/dev/null 2>&1; then
                                 __style=${FAST_THEME_NAME}correct-subtle
                             # if is file and subcommand is checkout or diff
                             elif [[ "${FAST_HIGHLIGHT[chroma-git-subcommand]}" = "checkout" \
                                 || "${FAST_HIGHLIGHT[chroma-git-subcommand]}" = "reset" \
                                 || "${FAST_HIGHLIGHT[chroma-git-subcommand]}" = "diff" ]] && [[ -e ${~__wrd} ]]; then
                                 __style=${FAST_THEME_NAME}path
+                            elif [[ "${FAST_HIGHLIGHT[chroma-git-subcommand]}" = "checkout" && \
+                                    "1" = "$(command git rev-list --count --no-walk --glob="refs/remotes/${$(git \
+                                        config --get checkout.defaultRemote):-*}/$__wrd")" ]]
+                            then
+                                __style=${FAST_THEME_NAME}correct-subtle
                             else
                                 __style=${FAST_THEME_NAME}incorrect-subtle
                             fi
