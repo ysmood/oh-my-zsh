@@ -77,11 +77,12 @@ else
 
             # Check if the command is an alias - we want to highlight the
             # aliased command just like the target command of the alias
-            -fast-run-command "git config --get-regexp 'alias.*'" chroma-git-alias-list "" 10
+            -fast-run-command "git config --get-regexp 'alias.*'" chroma-git-alias-list "" $(( 5 * 60 ))
             # Grep for line: alias.{user-entered-subcmd}[[:space:]], and remove alias. prefix
             __lines_list=( ${${(M)__lines_list[@]:#alias.${__wrd}[[:space:]]##*}#alias.} )
 
             if (( ${#__lines_list} > 0 )); then
+                # (*)
                 # First remove alias name (#*[[:space:]]) and the space after it, then
                 # remove any leading spaces from what's left (##[[:space:]]##), then
                 # remove everything except the first word that's in the left line
@@ -92,27 +93,39 @@ else
             fi
             if (( __start_pos >= 0 )); then
                 # if subcommand exists
-                -fast-run-command "git help -a" chroma-git-subcmd-list "" 10
+                -fast-run-command "git help -a" chroma-git-subcmd-list "" $(( 5 * 60 ))
                 # (s: :) will split on every space, but because the expression
                 # isn't double-quoted, the empty elements will be eradicated
                 # Some further knowledge-base: s-flag is special, it skips
                 # empty elements and creates an array (not a concatenated
                 # string) even when double-quoted. The normally needed @-flag
-                # that breaks the concaetnated string back into array in case
-                # of double-quoting has additional effect for s-flag: it
-                # finally blocks empty-elements eradication.
-                __lines_list=( ${(M)${(s: :)${(M)__lines_list[@]:#  [a-z]*}}:#$__wrd} )
+                # that logically breaks the concaetnated string back into array
+                # in case of double-quoting has additional effect for s-flag:
+                # it finally blocks empty-elements eradication.
+                if [[ "${__lines_list[1]}" = See* ]]; then
+                    # (**)
+                    # git >= v2.20
+                    __lines_list=( ${(M)${${${(M)__lines_list[@]:# [[:blank:]]#[a-z]*}##[[:blank:]]##}%%[[:blank:]]##*}:#${FAST_HIGHLIGHT[chroma-git-subcommand]}} )
+                else
+                    # (**)
+                    # git < v2.20
+                    __lines_list=( ${(M)${(s: :)${(M)__lines_list[@]:#  [a-z]*}}:#${FAST_HIGHLIGHT[chroma-git-subcommand]}} )
+                fi
+
+                # Above we've checked:
+                # 1) If given subcommand is an alias (*)
+                # 2) If the command, or command pointed by the alias, exists (**)
+                # 3) There's little problem, git v2.20 outputs aliases in git help -a,
+                #    which means that alias will be recognized as correct if it will
+                #    point at another alias or on itself. That's a minor problem, a
+                #    TODO for future planned optimization for v2.20 Git
+                # 4) Notice that the above situation is better than the previous - the
+                #    alias is being verified to point to a valid git subcommand
+                # That's all that's needed to decide on the correctnes:
                 if (( ${#__lines_list} > 0 )); then
                     __style=${FAST_THEME_NAME}subcommand
                 else
-                    -fast-run-command "git config --get-regexp 'alias.*'" chroma-git-alias-list "" 10
-                    # Does a line match alias.{user-entered-subcmd}[[:space:]] ?
-                    __lines_list=( ${(M)__lines_list[@]:#alias.${__wrd}[[:space:]]##*} )
-                    if (( ${#__lines_list} > 0 )); then
-                        __style=${FAST_THEME_NAME}subcommand
-                    else
-                        __style=${FAST_THEME_NAME}incorrect-subtle
-                    fi
+                    __style=${FAST_THEME_NAME}incorrect-subtle
                 fi
             fi
             # The counter includes the subcommand itself
